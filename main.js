@@ -82,16 +82,16 @@ if (slow) {
 }
 
 class Food {
-	constructor(nutrition) {
+	constructor(nutrition, cost, name) {
 		this.nutrition = nutrition
-		this.cost = 10
+		this.cost = cost
+		this.name = name
 	}
 }
 
 class Apple extends Food {
 	constructor() {
-		super(20)
-		this.name = 'Apple'
+		super(20, 10, 'Apple')
 	}
 }
 
