@@ -80,7 +80,12 @@ class Bot {
     this.rest = 100
     this.alive = 1
     this.turnsAlive = 0
+		this.actionNumber = 0
     this.actions = []
+		this.pain = {
+			hunger: 0,
+			tired: 0
+		}
     this.paint()
     this.update()
 
@@ -104,8 +109,9 @@ class Bot {
 
 	addAction(action) {
 		if (this.actions.length >= 10)
- 			this.actions = this.actions.slice(0, 10)
-		this.actions.unshift(action)
+ 			this.actions = this.actions.slice(0, 9)
+		this.actions.unshift(action + ' ' + this.actionNumber)
+		this.actionNumber++
 	}
 
 	getActions() {
@@ -120,6 +126,7 @@ class Bot {
 		if (slow) {
 			box.setContent(`
 ${this.paused ? 'PAUSED\n' : ''}
+${this.sleeping ? 'SLEEPING\n' : ''}
 ID: ${this.id}
 Status: ${this.alive === 1 ? 'Alive' : 'Dead'}
 Time Alive: ${this.turnsAlive}
@@ -150,12 +157,23 @@ ${this.getActions()}
     return
   }
 
+	updatePain() {
+		this.pain = {
+			hunger: Math.abs(this.food - 100),
+			tired: Math.abs(this.rest - 100)
+		}
+		if (this.pain.huger > 30 || this.pain.tired > 30) {
+			myNetwork.propagate(learningRate, [this.pain.hunger / 100, this.pain.tired / 100])
+		}
+	}
+
   update(recurse = true, act = true) {
     this.turnsAlive++
     this.food--
     this.rest--
 
     if (this.food <= 0 || this.rest <= 0) return this.dead()
+		this.updatePain()
     this.paint()
 
     if (act) {
@@ -163,19 +181,22 @@ ${this.getActions()}
       var actions = myNetwork.activate(act)
       let highest = 0
 
-      const max = _.max(actions)
+      const max = _.max(this.rest < 70 ? actions : actions.splice(1, 1))
       var action = _.findIndex(actions, (a) => a === max)
       if (action === 0)
         this.eat()
-      if (action === 1)
+      if (action === 1 && this.rest < 70)
         return this.sleep()
     }
 
     if (recurse) {
       if (this.slow)
-        setTimeout(() => !this.paused && this.update(), 200)
-      else
-        !this.paused && this.update()
+        return setTimeout(() => !this.paused && this.update(), 200)
+      else {
+				if (!this.paused) {
+					return this.update()
+				}
+			}
     }
   }
 
@@ -186,6 +207,7 @@ ${this.getActions()}
 		}
     if (!this.sleepCounter || this.sleepCounter <= 0) {
       this.sleepCounter = 30
+			this.sleeping = true
 			this.addAction('Sleep')
     }
 
@@ -193,10 +215,16 @@ ${this.getActions()}
     if (!this.alive) return this.dead()
     this.rest += 3
 		if (this.rest > 100) this.rest = 100
-    if (this.rest === 100) return this.update()
+    if (this.rest === 100) {
+			this.sleeping = false
+			return this.update()
+		}
 		else this.update(false, false)
 
-    if (this.sleepCounter <= 0) this.update()
+    if (this.sleepCounter <= 0) {
+			this.sleeping = false
+			return this.update()
+		}
     else this.slow ? setTimeout(() => this.sleep(), 200) : this.sleep()
   }
 
