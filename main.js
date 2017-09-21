@@ -15,9 +15,9 @@ let myNetwork
 try {
   myNetwork = Network.fromJSON(jsonFile.readFileSync('./data.json'))
 } catch (e) {
-  const inputLayer = new Layer(2)
+  const inputLayer = new Layer(3)
   const hiddenLayer = new Layer(5)
-  const outputLayer = new Layer(2)
+  const outputLayer = new Layer(3)
 
   inputLayer.project(hiddenLayer)
   hiddenLayer.project(outputLayer)
@@ -69,6 +69,20 @@ if (slow) {
 	box.focus()
 }
 
+class Food {
+	constructor(nutrition) {
+		this.nutrition = nutrition
+		this.cost = 10
+	}
+}
+
+class Apple extends Food {
+	constructor() {
+		super(20)
+		this.name = 'Apple'
+	}
+}
+
 let botCounter = 0
 
 class Bot {
@@ -86,6 +100,8 @@ class Bot {
 			hunger: 0,
 			tired: 0
 		}
+		this.inventory = [new Apple(), new Apple(), new Apple(), new Apple(), new Apple()]
+		this.money = 10
     this.paint()
     this.update()
 
@@ -107,6 +123,15 @@ class Bot {
 		}
   }
 
+	buy() {
+		if (this.money < 10)
+			return myNetwork.propagate(learningRate, [this.pain.hunger / 100, this.pain.tired / 100, 0])
+		if (this.inventory.length > 8) return
+		this.inventory.push(new Apple())
+		this.money -= 10
+		this.addAction('Buy')
+	}
+
 	addAction(action) {
 		if (this.actions.length >= 10)
  			this.actions = this.actions.slice(0, 9)
@@ -122,6 +147,14 @@ class Bot {
 		}, '')
 	}
 
+	getInventory() {
+		let count = 0
+		return _.reduce(this.inventory, (result, i) => {
+			count++
+			return result + `${count}. ${i.name}\n`
+		}, '')
+	}
+
   paint() {
 		if (slow) {
 			box.setContent(`
@@ -132,6 +165,9 @@ Status: ${this.alive === 1 ? 'Alive' : 'Dead'}
 Time Alive: ${this.turnsAlive}
 Food: ${this.food}
 Rest: ${this.rest}
+Money: ${this.money}
+Inventory:
+${this.getInventory(this.inventory)}
 Last Actions:
 ${this.getActions()}
 				`)
@@ -140,10 +176,13 @@ ${this.getActions()}
 			console.log(`
 ID: ${this.id}
 Status: ${this.alive === 1 ? 'Alive' : 'Dead'}
-Time Alive: ${this.turnsAlive}\n
-Food: ${this.food}\n
-Rest: ${this.rest}\n
-Last Actions: \n
+Time Alive: ${this.turnsAlive}
+Food: ${this.food}
+Rest: ${this.rest}
+Money: ${this.money}
+Inventory:
+${this.getInventory(this.inventory)}
+Last Actions:
 ${this.getActions()}
 			`)
 		}
@@ -151,7 +190,7 @@ ${this.getActions()}
 
   dead() {
     this.alive = 0
-    const lesson = [Math.abs((this.food / 100) - 1), Math.abs((this.rest / 100 - 1))]
+    const lesson = [Math.abs((this.food / 100) - 1), Math.abs((this.rest / 100 - 1)), Math.abs(this.money / 100 - 1)]
     myNetwork.propagate(learningRate, lesson)
     this.paint()
     return
@@ -163,7 +202,7 @@ ${this.getActions()}
 			tired: Math.abs(this.rest - 100)
 		}
 		if (this.pain.huger > 30 || this.pain.tired > 30) {
-			myNetwork.propagate(learningRate, [this.pain.hunger / 100, this.pain.tired / 100])
+			myNetwork.propagate(learningRate, [this.pain.hunger / 100, this.pain.tired / 100, Math.abs(this.money / 100 - 1)])
 		}
 	}
 
@@ -171,22 +210,26 @@ ${this.getActions()}
     this.turnsAlive++
     this.food--
     this.rest--
+		this.money++
+		if (this.money > 100) this.money = 100
 
     if (this.food <= 0 || this.rest <= 0) return this.dead()
 		this.updatePain()
     this.paint()
 
     if (act) {
-      var act = [this.food / 100, this.rest / 100]
+      var act = [this.food / 100, this.rest / 100, this.money / 100]
       var actions = myNetwork.activate(act)
       let highest = 0
 
-      const max = _.max(this.rest < 70 ? actions : actions.splice(1, 1))
+      const max = _.max(actions)
       var action = _.findIndex(actions, (a) => a === max)
       if (action === 0)
         this.eat()
       if (action === 1 && this.rest < 70)
         return this.sleep()
+			if (action === 2)
+				this.buy()
     }
 
     if (recurse) {
@@ -206,7 +249,7 @@ ${this.getActions()}
 			return this.update()
 		}
     if (!this.sleepCounter || this.sleepCounter <= 0) {
-      this.sleepCounter = 30
+      this.sleepCounter = 15
 			this.sleeping = true
 			this.addAction('Sleep')
     }
@@ -230,7 +273,13 @@ ${this.getActions()}
 
   eat() {
     this.addAction('Eat')
-    this.food = 100
+		if (this.inventory.length > 0) {
+			this.food += this.inventory[0].nutrition
+			this.inventory.shift()
+		} else {
+			myNetwork.propagate(learningRate, [this.pain.hunger / 100, this.pain.tired / 100, 1])
+		}
+		if (this.food > 100) this.food = 100
   }
 }
 
