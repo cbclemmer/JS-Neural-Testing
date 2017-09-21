@@ -8,16 +8,7 @@ var Neuron = synaptic.Neuron,
 	Trainer = synaptic.Trainer,
 	Architect = synaptic.Architect;
 
-// Create a screen object.
-var screen = blessed.screen({
-  smartCSR: true
-});
-
-screen.title = 'Neural testing'
-
-screen.key(['escape', 'q', 'C-c'], function(ch, key) {
-  return process.exit(0)
-})
+const slow = true
 
 let myNetwork
 
@@ -40,29 +31,43 @@ try {
 
 const learningRate = .3
 
-var box = blessed.box({
-  top: 'center',
-  left: 'center',
-  width: '50%',
-  height: '50%',
-  content: '',
-  tags: true,
-  border: {
-    type: 'line'
-  },
-  style: {
-    fg: 'white',
-    border: {
-      fg: '#f0f0f0'
-    },
-    hover: {
-      bg: 'green'
-    }
-  }
-})
+let box, screen
+if (slow) {
+	// Create a screen object.
+	screen = blessed.screen({
+	  smartCSR: true
+	});
 
-screen.append(box)
-box.focus()
+	screen.title = 'Neural testing'
+
+	screen.key(['escape', 'q', 'C-c'], function(ch, key) {
+	  return process.exit(0)
+	})
+
+	box = blessed.box({
+	  top: 'center',
+	  left: 'center',
+	  width: '50%',
+	  height: '50%',
+	  content: '',
+	  tags: true,
+	  border: {
+	    type: 'line'
+	  },
+	  style: {
+	    fg: 'white',
+	    border: {
+	      fg: '#f0f0f0'
+	    },
+	    hover: {
+	      bg: 'green'
+	    }
+	  }
+	})
+
+	screen.append(box)
+	box.focus()
+}
 
 let botCounter = 0
 
@@ -75,37 +80,66 @@ class Bot {
     this.rest = 100
     this.alive = 1
     this.turnsAlive = 0
-    this.lastAction = ''
+    this.actions = []
     this.paint()
     this.update()
 
-    screen.key(['p'], (ch, key) => {
-      if (this.paused) {
-        this.paused = false
-        this.update()
-      } else {
-        this.paused = true
-      }
-    })
+		if (slow) {
+			screen.key(['p'], (ch, key) => {
+				if (this.paused) {
+					this.paused = false
+					this.update()
+				} else {
+					this.paused = true
+				}
+			})
 
-    screen.key(['s'], (ch, key) => {
-      if (this.paused) {
-        this.update()
-      }
-    })
+			screen.key(['s'], (ch, key) => {
+				if (this.paused) {
+					this.update()
+				}
+			})
+		}
   }
 
+	addAction(action) {
+		if (this.actions.length >= 10)
+ 			this.actions = this.actions.slice(0, 10)
+		this.actions.unshift(action)
+	}
+
+	getActions() {
+		let count = 0
+		return _.reduce(this.actions, (result, a) => {
+			count++
+			return result + `${count}. ${a}\n`
+		}, '')
+	}
+
   paint() {
-    box.setContent(`
-      ${this.paused ? 'PAUSED\n\n' : ''}
-      ID: ${this.id}\n
-      Status: ${this.alive === 1 ? 'Alive' : 'Dead'}\n
-      Time Alive: ${this.turnsAlive}\n
-      Food: ${this.food}\n
-      Rest: ${this.rest}\n
-      Last Action: ${this.lastAction}
-    `)
-    screen.render()
+		if (slow) {
+			box.setContent(`
+${this.paused ? 'PAUSED\n' : ''}
+ID: ${this.id}
+Status: ${this.alive === 1 ? 'Alive' : 'Dead'}
+Time Alive: ${this.turnsAlive}
+Food: ${this.food}
+Rest: ${this.rest}
+Last Actions:
+${this.getActions()}
+				`)
+				screen.render()
+		} else {
+			console.log(`
+ID: ${this.id}
+Status: ${this.alive === 1 ? 'Alive' : 'Dead'}
+Time Alive: ${this.turnsAlive}\n
+Food: ${this.food}\n
+Rest: ${this.rest}\n
+Last Actions: \n
+${this.getActions()}
+			`)
+		}
   }
 
   dead() {
@@ -131,11 +165,10 @@ class Bot {
 
       const max = _.max(actions)
       var action = _.findIndex(actions, (a) => a === max)
-      // if (action === 0)
-      //   this.eat()
-      // if (action === 1)
-      //   return this.sleep()
-
+      if (action === 0)
+        this.eat()
+      if (action === 1)
+        return this.sleep()
     }
 
     if (recurse) {
@@ -147,31 +180,38 @@ class Bot {
   }
 
   sleep() {
+		if (this.rest >= 100) {
+			this.rest = 100
+			return this.update()
+		}
     if (!this.sleepCounter || this.sleepCounter <= 0) {
       this.sleepCounter = 30
-      this.lastAction = 'Sleep'
+			this.addAction('Sleep')
     }
 
     this.sleepCounter--
-    this.update(false, false)
-    if (!this.alive) return
-    this.rest += 2
-    if (this.rest === 100) this.update()
+    if (!this.alive) return this.dead()
+    this.rest += 3
+		if (this.rest > 100) this.rest = 100
+    if (this.rest === 100) return this.update()
+		else this.update(false, false)
 
     if (this.sleepCounter <= 0) this.update()
-    else this.sleep()
+    else this.slow ? setTimeout(() => this.sleep(), 200) : this.sleep()
   }
 
   eat() {
-    this.lastAction = 'Eat'
+    this.addAction('Eat')
     this.food = 100
   }
 }
 
-let bot = new Bot()
-while (bot.turnsAlive <= 1000) {
-  bot = new Bot()
-  jsonFile.writeFileSync('./data.json', myNetwork.toJSON())
+let bot = new Bot(slow)
+if (!slow) {
+	while (bot.turnsAlive <= 10000) {
+		bot = new Bot(slow)
+		jsonFile.writeFileSync('./data.json', myNetwork.toJSON())
+	}
 }
 
 console.log(bot.turnsAlive)
