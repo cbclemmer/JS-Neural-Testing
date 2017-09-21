@@ -18,18 +18,20 @@ try {
 	/*
 	INPUTS: (stats)
 	hunger
+	thirst
 	rest
 	money
 	OUTPUTS: (Actions)
 	Eat
+	Drink
 	Sleep
 	Buy
 	Work
 	*/
 
-  const inputLayer = new Layer(3)
-  const hiddenLayer = new Layer(6)
-  const outputLayer = new Layer(4)
+  const inputLayer = new Layer(4)
+  const hiddenLayer = new Layer(20)
+  const outputLayer = new Layer(5)
 
   inputLayer.project(hiddenLayer)
   hiddenLayer.project(outputLayer)
@@ -103,6 +105,7 @@ class Bot {
     botCounter++
     this.slow = slow
     this.food = 100
+		this.hydration = 100
     this.rest = 100
     this.alive = 1
     this.turnsAlive = 0
@@ -111,6 +114,7 @@ class Bot {
 		this.currentAction = ''
 		this.pain = {
 			hunger: 0,
+			thirst: 0,
 			tired: 0
 		}
 		this.inventory = [new Apple(), new Apple(), new Apple(), new Apple(), new Apple()]
@@ -138,7 +142,13 @@ class Bot {
 
 	buy() {
 		if (this.money < 10)
-			return myNetwork.propagate(learningRate, [this.pain.hunger / 100, this.pain.tired / 100, 0, 1])
+			return myNetwork.propagate(learningRate, [
+				this.pain.hunger / 100,
+				this.pain.thirst / 100,
+				this.pain.tired / 100,
+				0, // don't buy if you don't have the money
+				1 // Work for your monoy
+			])
 		if (this.inventory.length > 8) return
 		this.inventory.push(new Apple())
 		this.money -= 10
@@ -155,7 +165,7 @@ class Bot {
 	getActions() {
 		let count = 0
 		let actionsCount = -1
-		var actions = ['Eat', 'Sleep', 'Buy', 'Work']
+		var actions = ['Eat', 'Drink', 'Sleep', 'Buy', 'Work']
 
 		return _(this.currentAction)
 			.map((a) => {
@@ -194,6 +204,7 @@ ID: ${this.id}
 Status: ${this.alive === 1 ? 'Alive' : 'Dead'}
 Time Alive: ${this.turnsAlive}
 Food: ${this.food}
+Hydration: ${this.hydration}
 Rest: ${this.rest}
 Money: ${this.money}
 Inventory:
@@ -205,20 +216,21 @@ ${this.getLastActions()}
 				`)
 				screen.render()
 		} else {
-			console.log(`
-ID: ${this.id}
-Status: ${this.alive === 1 ? 'Alive' : 'Dead'}
-Time Alive: ${this.turnsAlive}
-Food: ${this.food}
-Rest: ${this.rest}
-Money: ${this.money}
-Inventory:
-${this.getInventory(this.inventory)}
-Current Action:
-${this.getActions()}
-Last Actions:
-${this.getLastActions()}
-			`)
+// 			console.log(`
+// ID: ${this.id}
+// Status: ${this.alive === 1 ? 'Alive' : 'Dead'}
+// Time Alive: ${this.turnsAlive}
+// Food: ${this.food}
+// Hydration: ${this.hydration}
+// Rest: ${this.rest}
+// Money: ${this.money}
+// Inventory:
+// ${this.getInventory(this.inventory)}
+// Current Action:
+// ${this.getActions()}
+// Last Actions:
+// ${this.getLastActions()}
+// 			`)
 		}
   }
 
@@ -226,6 +238,7 @@ ${this.getLastActions()}
     this.alive = 0
     const lesson = [
 			Math.abs((this.food / 100) - 1), // Eat when food is low
+			Math.abs((this.hydration / 100) - 1), // Drink when you are thirsty
 			Math.abs((this.rest / 100 - 1)), // Sleep when rest is low
 			Math.abs(this.money / 100), // Buy when you have lots of money
 			Math.abs(this.money / 100 - 1) // Work when you have little money
@@ -238,24 +251,33 @@ ${this.getLastActions()}
 	updatePain() {
 		this.pain = {
 			hunger: Math.abs(this.food - 100),
+			thirst: Math.abs(this.hydration - 100),
 			tired: Math.abs(this.rest - 100)
 		}
-		if (this.pain.huger > 30 || this.pain.tired > 30) {
-			myNetwork.propagate(learningRate, [this.pain.hunger / 100, this.pain.tired / 100, Math.abs(this.money / 100 ), Math.abs(this.money / 100 - 1)])
+		if (this.pain.huger > 30 || this.pain.thirst > 30 || this.pain.tired > 30) {
+			myNetwork.propagate(learningRate, [
+				this.pain.hunger / 100,
+				this.pain.thirst / 100,
+				this.pain.tired / 100,
+				Math.abs(this.money / 100 ),
+				Math.abs(this.money / 100 - 1)
+			])
 		}
 	}
 
   update(recurse = true, act = true) {
     this.turnsAlive++
     this.food--
+		this.hydration--
     this.rest--
 
-    if (this.food <= 0 || this.rest <= 0) return this.dead()
+    if (this.food <= 0 || this.hydration <= 0  || this.rest <= 0) return this.dead()
 		this.updatePain()
     this.paint()
 
     if (act) {
-      var act = [this.food / 100, this.rest / 100, this.money / 100]
+			this.sleeping = false
+      var act = [this.food / 100, this.hydration / 100, this.rest / 100, this.money / 100]
       var actions = myNetwork.activate(act)
       let highest = 0
 
@@ -264,11 +286,13 @@ ${this.getLastActions()}
       var action = _.findIndex(actions, (a) => a === max)
       if (action === 0)
         this.eat()
-      if (action === 1 && this.rest < 70)
-        return this.sleep()
+      if (action === 1)
+				this.drink()
 			if (action === 2)
-				this.buy()
+				return this.sleep()
 			if (action === 3)
+				this.buy()
+			if (action === 4)
 				this.work()
     }
 
@@ -282,6 +306,8 @@ ${this.getLastActions()}
   }
 
   sleep() {
+		if (this.rest > 70)
+			return this.update()
 		if (this.rest >= 100) {
 			this.rest = 100
 			return this.update()
@@ -315,10 +341,16 @@ ${this.getLastActions()}
 			this.food += this.inventory[0].nutrition
 			this.inventory.shift()
 		} else {
-			myNetwork.propagate(learningRate, [this.pain.hunger / 100, this.pain.tired / 100, 1, 1])
+			myNetwork.propagate(learningRate, [this.pain.hunger / 100, this.pain.thirst / 100, this.pain.tired / 100, 1, .5])
 		}
 		if (this.food > 100) this.food = 100
   }
+
+	drink() {
+		this.addAction('Drink')
+		this.hydration +=  20
+		if (this.hydration > 100) this.hydration = 100
+	}
 
 	work() {
 		this.addAction('Work')
@@ -328,9 +360,15 @@ ${this.getLastActions()}
 }
 
 let bot = new Bot(slow)
+let highest = 0
 if (!slow) {
 	while (bot.turnsAlive <= 10000) {
 		bot = new Bot(slow)
+		process.stdout.write('.')
+		if (bot.turnsAlive > highest) {
+			highest = bot.turnsAlive
+			console.log('\n' + highest)
+		}
 		jsonFile.writeFileSync('./data.json', myNetwork.toJSON())
 	}
 }
