@@ -11,6 +11,7 @@
   "license": "ISC",
   "dependencies": {
     "blessed": "^0.1.81",
+    "eslint": "^4.7.2",
     "jsonfile": "^4.0.0",
     "lodash": "^4.17.4",
     "synaptic": "^1.1.2"
