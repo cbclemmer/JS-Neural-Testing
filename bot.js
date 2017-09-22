@@ -2,8 +2,8 @@ const _ = require('lodash')
 const { Apple } = require('./items')
 
 class Bot {
-  constructor(network, render, id = 0, gui = false) {
-    _.extend(this, { id, network, render, gui})
+  constructor(network, render, id = 0, gui = false, deadCb) {
+    _.extend(this, { id, network, render, gui, deadCb })
     this.learningRate = .3
     this.food = 100
     this.hydration = 100
@@ -34,8 +34,9 @@ class Bot {
         1 // Work for your monoy
       ])
     if (this.inventory.length > 8) return
-    this.inventory.push(new Apple())
-    this.money -= 10
+    const apple = new Apple()
+    this.inventory.push(apple)
+    this.money -= apple.cost
     this.addAction('Buy')
   }
 
@@ -111,6 +112,7 @@ ${this.getLastActions()}
     ]
     this.network.propagate(this.learningRate, lesson)
     this.paint()
+    this.deadCb(this.turnsAlive)
     return
   }
 
@@ -203,7 +205,13 @@ ${this.getLastActions()}
       this.sleeping = false
       return this.update()
     }
-    else this.gui ? setTimeout(() => this.sleep(), 200) : this.sleep()
+    else {
+      if (this.gui) {
+        return setTimeout(() => this.sleep(), 200)
+      } else {
+        return setTimeout(() => this.sleep(), 0)
+      }
+    }
   }
 
   eat() {

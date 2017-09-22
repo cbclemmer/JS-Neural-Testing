@@ -32,8 +32,7 @@ if (gui) return
 
 let highest = 0
 while (bot.turnsAlive <= 1000) {
-  bot = new Bot(myNetwork, render, botCounter, gui)
-  process.stdout.write('.')
+  bot = new Bot(myNetwork, render, botCounter, gui, (turnsAlive) => console.log(turnsAlive))
   if (bot.turnsAlive > highest) {
     highest = bot.turnsAlive
     console.log('\n' + highest)

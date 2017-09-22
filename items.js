@@ -8,7 +8,7 @@ class Food {
 
 class Apple extends Food {
   constructor() {
-    super(20, 10, 'Apple')
+    super(30, 10, 'Apple')
   }
 }
 
