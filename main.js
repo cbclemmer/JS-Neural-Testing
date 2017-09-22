@@ -1,12 +1,6 @@
-var synaptic = require('synaptic')
-const blessed = require('blessed')
 const _ = require('lodash')
 const jsonFile = require('jsonfile')
-var Neuron = synaptic.Neuron,
-	Layer = synaptic.Layer,
-	Network = synaptic.Network,
-	Trainer = synaptic.Trainer,
-	Architect = synaptic.Architect;
+const { Neuron, Layer, Network, Trainer, Architect } = require('synaptic')
 
 const slow = process.argv[2] === 'gui'
 
@@ -15,94 +9,16 @@ let myNetwork
 try {
   myNetwork = Network.fromJSON(jsonFile.readFileSync('./data.json'))
 } catch (e) {
-	/*
-	INPUTS: (stats)
-	hunger
-	thirst
-	rest
-	money
-	OUTPUTS: (Actions)
-	Eat
-	Drink
-	Sleep
-	Buy
-	Work
-	*/
-
-  const inputLayer = new Layer(4)
-  const hiddenLayer = new Layer(20)
-  const outputLayer = new Layer(5)
-
-  inputLayer.project(hiddenLayer)
-  hiddenLayer.project(outputLayer)
-
-  myNetwork = new Network({
-    input: inputLayer,
-    hidden: [hiddenLayer],
-    output: outputLayer
-  })
+	myNetwork = require('./network')
 }
 
 const learningRate = .3
 
 let box, screen
 if (slow) {
-	// Create a screen object.
-	screen = blessed.screen({
-	  smartCSR: true
-	});
-
-	screen.title = 'Neural testing'
-
-	screen.key(['escape', 'q', 'C-c'], function(ch, key) {
-	  return process.exit(0)
-	})
-
-	box = blessed.box({
-	  top: 'center',
-	  left: 'center',
-	  width: '50%',
-	  height: '50%',
-	  content: '',
-	  tags: true,
-	  border: {
-	    type: 'line'
-	  },
-	  style: {
-	    fg: 'white',
-	    border: {
-	      fg: '#f0f0f0'
-	    },
-	    hover: {
-	      bg: 'green'
-	    }
-	  }
-	})
-
-	escBox = blessed.box({
-		top: '0%',
-		left: '0%',
-		width: '50%',
-		height: '10%',
-		content: 'Press esc to exit',
-		tags: true,
-		border: {
-			type: 'line'
-		},
-		style: {
-			fg: 'white',
-			border: {
-				fg: '#f0f0f0'
-			},
-			hover: {
-				bg: 'green'
-			}
-		}
-	})
-
-	screen.append(box)
-	screen.append(escBox)
-	box.focus()
+	const blessedConfig = require('./screen')
+	box = blessedConfig.box
+	screen = blessedConfig.screen
 }
 
 class Food {
@@ -237,22 +153,6 @@ Last Actions:
 ${this.getLastActions()}
 				`)
 				screen.render()
-		} else {
-// 			console.log(`
-// ID: ${this.id}
-// Status: ${this.alive === 1 ? 'Alive' : 'Dead'}
-// Time Alive: ${this.turnsAlive}
-// Food: ${this.food}
-// Hydration: ${this.hydration}
-// Rest: ${this.rest}
-// Money: ${this.money}
-// Inventory:
-// ${this.getInventory(this.inventory)}
-// Current Action:
-// ${this.getActions()}
-// Last Actions:
-// ${this.getLastActions()}
-// 			`)
 		}
   }
 
@@ -384,15 +284,19 @@ ${this.getLastActions()}
 let bot = new Bot(slow)
 let highest = 0
 if (!slow) {
-	while (bot.turnsAlive <= 10000) {
+	while (bot.turnsAlive <= 1000) {
 		bot = new Bot(slow)
 		process.stdout.write('.')
 		if (bot.turnsAlive > highest) {
 			highest = bot.turnsAlive
 			console.log('\n' + highest)
 		}
-		jsonFile.writeFileSync('./data.json', myNetwork.toJSON())
 	}
 }
 
-console.log(bot.turnsAlive)
+console.log('Highest: ' + highest)
+
+jsonFile.writeFile('./data.json', myNetwork.toJSON(), (err) => {
+	if (err) console.error(err)
+	process.exit()
+})
